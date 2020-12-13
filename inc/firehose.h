@@ -12,8 +12,8 @@
 /*=============================================================================
                         Edit History
 
-$Header: //source/qcom/qct/platform/uefi/workspaces/pweber/apps/8x26_emmcdl/emmcdl/main/latest/inc/firehose.h#11 $
-$DateTime: 2015/04/01 17:01:45 $ $Author: pweber $
+$Header: //deploy/qcom/qct/platform/wpci/prod/woa/emmcdl/main/latest/inc/firehose.h#16 $
+$DateTime: 2019/06/13 16:37:39 $ $Author: wmcisvc $
 
 when       who     what, where, why
 -------------------------------------------------------------------------------
@@ -27,7 +27,9 @@ when       who     what, where, why
 #include <stdio.h>
 #include <Windows.h>
 
+#define RAW_STATUS_TIMEOUT 10  // 10*500ms = 5 seconds
 #define MAX_RETRY   50
+#define ACK_TIMEOUT_COUNT 10
 
 typedef struct {
   BYTE Version;
@@ -37,18 +39,21 @@ typedef struct {
   bool ZLPAwareHost;
   int ActivePartition;
   int MaxPayloadSizeToTargetInBytes;
+  UINT8 Lun;
+  int AlwaysValidate;
 } fh_configure_t;
 
 class Firehose : public Protocol {
 public:
   Firehose(SerialPort *port, HANDLE hLogFile = NULL);
   ~Firehose();
+  Firehose();
 
   int WriteData(BYTE *writeBuffer, __int64 writeOffset, DWORD writeBytes, DWORD *bytesWritten, UINT8 partNum);
   int ReadData(BYTE *readBuffer, __int64 readOffset, DWORD readBytes, DWORD *bytesRead, UINT8 partNum);
 
   int DeviceReset(void);
-  int FastCopy(HANDLE hRead, __int64 sectorRead, HANDLE hWrite, __int64 sectorWrite, uint64 sectors, UINT8 partNum);
+  int FastCopy(HANDLE hRead, __int64 sectorRead, HANDLE hWrite, __int64 sectorWrite, uint64 sectors, UINT8 partNum, BOOL zDump);
   int ProgramPatchEntry(PartitionEntry pe, TCHAR *key);
   int ProgramRawCommand(TCHAR *key);
 
@@ -56,6 +61,7 @@ public:
   int CreateGPP(DWORD dwGPP1, DWORD dwGPP2, DWORD dwGPP3, DWORD dwGPP4);
   int SetActivePartition(int prtn_num);
   int ConnectToFlashProg(fh_configure_t *cfg);
+  void FirehoseInit(SerialPort *port, HANDLE hLogFile = NULL);
 
 protected:
 

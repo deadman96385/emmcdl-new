@@ -12,8 +12,8 @@
 /*=============================================================================
                         Edit History
 
-$Header: //source/qcom/qct/platform/uefi/workspaces/pweber/apps/8x26_emmcdl/emmcdl/main/latest/src/dload.cpp#5 $
-$DateTime: 2015/04/29 17:06:00 $ $Author: pweber $
+$Header: //deploy/qcom/qct/platform/wpci/prod/woa/emmcdl/main/latest/src/dload.cpp#8 $
+$DateTime: 2015/05/12 13:12:15 $ $Author: wmcisvc $
 
 when       who     what, where, why
 -------------------------------------------------------------------------------

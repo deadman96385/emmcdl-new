@@ -12,8 +12,8 @@
 /*=============================================================================
 Edit History
 
-$Header: //source/qcom/qct/platform/uefi/workspaces/pweber/apps/8x26_emmcdl/emmcdl/main/latest/src/sparse.cpp#2 $
-$DateTime: 2015/04/01 17:01:45 $ $Author: pweber $
+$Header: //deploy/qcom/qct/platform/wpci/prod/woa/emmcdl/main/latest/src/sparse.cpp#3 $
+$DateTime: 2015/07/22 17:54:37 $ $Author: wmcisvc $
 
 when       who     what, where, why
 -------------------------------------------------------------------------------
@@ -79,7 +79,7 @@ int SparseImage::PreLoadImage(TCHAR *szSparseFile)
 int SparseImage::ProgramImage(Protocol *pProtocol, __int64 dwOffset)
 {
   CHUNK_HEADER ChunkHeader;
-  BYTE *bpDataBuf;
+  BYTE *bpDataBuf = NULL;
   DWORD dwBytesRead;
   DWORD dwBytesOut;
   int status = ERROR_SUCCESS;
@@ -93,46 +93,57 @@ int SparseImage::ProgramImage(Protocol *pProtocol, __int64 dwOffset)
   // Allocated a buffer 
 
   // Main loop through all block entries in the sparse image
-  for (UINT32 i=0; i < SparseHeader.dwTotalChunks; i++){
+  for (UINT32 i=0; i < SparseHeader.dwTotalChunks; i++) {
+
     // Read chunk header 
     if (ReadFile(hSparseImage, &ChunkHeader, sizeof(ChunkHeader), &dwBytesRead, NULL)){
+      UINT32 dwChunkSize = ChunkHeader.dwChunkSize*SparseHeader.dwBlockSize;
+      // Allocate a buffer the size of the chunk and read in the data
+      bpDataBuf = (BYTE *)malloc(dwChunkSize);
+      if (bpDataBuf == NULL){
+        return ERROR_OUTOFMEMORY;
+      }
       if (ChunkHeader.wChunkType == SPARSE_RAW_CHUNK){
-        UINT32 dwChunkSize = ChunkHeader.dwChunkSize*SparseHeader.dwBlockSize;
-        // Allocate a buffer the size of the chunk and read in the data
-        bpDataBuf = (BYTE *)malloc(dwChunkSize);
-        if (bpDataBuf == NULL){
-          return ERROR_OUTOFMEMORY;
-        }
         if (ReadFile(hSparseImage, bpDataBuf, dwChunkSize, &dwBytesRead, NULL)) {
           // Now we have the data so use whatever protocol we need to write this out
           pProtocol->WriteData(bpDataBuf, dwOffset, dwChunkSize, &dwBytesOut,0);
-          dwOffset += ChunkHeader.dwChunkSize;
+          dwOffset += dwChunkSize;
         }
         else {
           status = GetLastError();
           break;
         }
-        free(bpDataBuf);
       }
-      else if (ChunkHeader.wChunkType == SPARSE_FILL_CHUNK){
+      else if (ChunkHeader.wChunkType == SPARSE_FILL_CHUNK) {
         // Fill chunk with data byte given for now just skip over this area
         dwOffset += ChunkHeader.dwChunkSize*SparseHeader.dwBlockSize;
       }
-      else if (ChunkHeader.wChunkType == SPARSE_DONT_CARE){
+      else if (ChunkHeader.wChunkType == SPARSE_DONT_CARE) {
         // Skip the specified number of bytes in the output file
-        dwOffset += ChunkHeader.dwChunkSize*SparseHeader.dwBlockSize;
+        // Fill the buffer with 0
+        memset(bpDataBuf, 0, dwChunkSize);
+        pProtocol->WriteData(bpDataBuf, dwOffset, dwChunkSize, &dwBytesOut, 0);
+        dwOffset += dwChunkSize;
       }
       else {
         // We have no idea what type of chunk this is return a failure and close file
         status = ERROR_INVALID_DATA;
         break;
       }
+      free(bpDataBuf);
+      bpDataBuf = NULL;
     }
     else {
       // Failed to read data something is wrong with the file
       status = GetLastError();
       break;
     }
+  }
+
+  // If we broke here from an error condition free the bpDataBuf
+  if( bpDataBuf != NULL) {
+    free(bpDataBuf);
+    bpDataBuf = NULL;
   }
 
   // If we failed to load the file close the handle and set sparse image back to false

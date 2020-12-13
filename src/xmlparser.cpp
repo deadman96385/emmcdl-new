@@ -12,8 +12,8 @@
 /*=============================================================================
                         Edit History
 
-$Header: //source/qcom/qct/platform/uefi/workspaces/pweber/apps/8x26_emmcdl/emmcdl/main/latest/src/xmlparser.cpp#2 $
-$DateTime: 2014/08/05 11:44:01 $ $Author: pweber $
+$Header: //deploy/qcom/qct/platform/wpci/prod/woa/emmcdl/main/latest/src/xmlparser.cpp#4 $
+$DateTime: 2019/03/11 15:00:38 $ $Author: wmcisvc $
 
 when       who     what, where, why
 -------------------------------------------------------------------------------
@@ -122,12 +122,12 @@ char *XMLParser::StringReplace(char *inp, char *find, char *rep)
   if( sptr != NULL ) {
     // Copy part of string before the value to replace
     strncpy_s(tptr,max_len,inp,(sptr-inp));
-    max_len -= (sptr-inp);
+    max_len -= (int)(sptr-inp);
     tptr += (sptr-inp);
     sptr += strlen(find);
     // Copy the replace value
     strncpy_s(tptr,max_len,rep,strlen(rep));
-    max_len -= strlen(rep);
+    max_len -= (int)strlen(rep);
     tptr += strlen(rep);
 
     // Copy the rest of the string

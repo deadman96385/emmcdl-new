@@ -12,8 +12,8 @@
 /*=============================================================================
                         Edit History
 
-$Header: //source/qcom/qct/platform/uefi/workspaces/pweber/apps/8x26_emmcdl/emmcdl/main/latest/inc/sahara.h#5 $
-$DateTime: 2015/04/29 17:06:00 $ $Author: pweber $
+$Header: //deploy/qcom/qct/platform/wpci/prod/woa/emmcdl/main/latest/inc/sahara.h#9 $
+$DateTime: 2016/02/17 11:22:20 $ $Author: wmcisvc $
 
 when       who     what, where, why
 -------------------------------------------------------------------------------
@@ -119,6 +119,13 @@ typedef struct {
   DWORD pbl_sw;
 } pbl_info_t;
 
+typedef struct {
+  DWORD  cmd;
+  DWORD  len;
+  UINT64 addr;
+  UINT64 data_len;
+} memory_read_64_t;
+
 class Sahara {
 public:
   Sahara(SerialPort *port,HANDLE hLogFile = NULL);
@@ -126,6 +133,8 @@ public:
   int LoadFlashProg(TCHAR *szFlashPrg);
   int ConnectToDevice(bool bReadHello, int mode);
   int DumpDeviceInfo(pbl_info_t *pbl_info);
+  int DumpDebugInfo(TCHAR *szFileName);
+  int MemoryDump(UINT64 addr, UINT32 len);
   bool CheckDevice(void);
 
 private:

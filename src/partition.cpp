@@ -12,8 +12,8 @@
 /*=============================================================================
                         Edit History
 
-$Header: //source/qcom/qct/platform/uefi/workspaces/pweber/apps/8x26_emmcdl/emmcdl/main/latest/src/partition.cpp#9 $
-$DateTime: 2015/04/30 15:10:13 $ $Author: pweber $
+$Header: //deploy/qcom/qct/platform/wpci/prod/woa/emmcdl/main/latest/src/partition.cpp#20 $
+$DateTime: 2019/03/11 15:00:38 $ $Author: wmcisvc $
 
 when       who     what, where, why
 -------------------------------------------------------------------------------
@@ -27,6 +27,7 @@ when       who     what, where, why
 #include "partition.h"
 #include "protocol.h"
 #include "sparse.h"
+#include "sparsezip.h"
 #include "winerror.h"
 #include <stdlib.h>
 
@@ -66,12 +67,12 @@ TCHAR *StringReplace(TCHAR *inp, TCHAR *find, TCHAR *rep)
   if( sptr != NULL ) {
     // Copy part of string before the value to replace
     wcsncpy_s(tptr,max_len,inp,(sptr-inp));
-    max_len -= (sptr-inp);
+    max_len -= (int)(sptr-inp);
     tptr += (sptr-inp);
     sptr += wcslen(find);
     // Copy the replace value
     wcsncpy_s(tptr,max_len,rep,wcslen(rep));
-    max_len -= wcslen(rep);
+    max_len -= (int)wcslen(rep);
     tptr += wcslen(rep);
 
     // Copy the rest of the string
@@ -265,7 +266,7 @@ int Partition::ParsePathList()
 
 bool Partition::CheckEmptyLine(TCHAR *str)
 {
-  int keylen = wcslen(str);
+  int keylen = (int)wcslen(str);
   while (iswspace(*str) && (keylen > 0))
   {
     str++;
@@ -312,23 +313,23 @@ int Partition::ParseXMLKey(TCHAR *key, PartitionEntry *pe)
 
   // All commands need start_sector, physical_partition_number and num_partition_sectors
   if( ParseXMLInt64(key,L"start_sector", pe->start_sector, pe) != ERROR_SUCCESS ) {
-    Log(L"start_sector missing in XML line:%s\n",key);
+    wprintf(L"start_sector missing in XML line:%s\n",key);
     return ERROR_INVALID_DATA;
   } else {
-    Log("start_sector: %I64d ",  pe->start_sector);
+    wprintf(L"start_sector: %I64d ",  pe->start_sector);
   }
 	
   uint64 partNum;
   if( ParseXMLInt64(key,L"physical_partition_number", partNum, pe) != ERROR_SUCCESS ) {
-    Log("physical_partition_number missing in XML line\n");
+    wprintf(L"physical_partition_number missing in XML line\n");
     return ERROR_INVALID_DATA;
   } else {
     pe->physical_partition_number = (UINT8)partNum;
-    Log("physical_partition_number: %i ", pe->physical_partition_number);
+    wprintf(L"physical_partition_number: %i ", pe->physical_partition_number);
   }
 
   if( ParseXMLInt64(key,L"num_partition_sectors", pe->num_sectors, pe) == ERROR_SUCCESS ) {
-    Log("num_partition_sectors: %I64d ", pe->num_sectors);
+    wprintf(L"num_partition_sectors: %I64d ", pe->num_sectors);
     // If zero then write out all sectors for size of file
   } else {
     pe->num_sectors = (uint64)-1;
@@ -337,7 +338,7 @@ int Partition::ParseXMLKey(TCHAR *key, PartitionEntry *pe)
   if( pe->eCmd == CMD_PATCH || pe->eCmd == CMD_PROGRAM || pe->eCmd == CMD_READ) {
     // Both program and patch need a filename to be valid
     if( ParseXMLString(key,L"filename", pe->filename) != ERROR_SUCCESS ) {
-      Log("filename missing in XML line\n");
+      wprintf(L"filename missing in XML line\n");
 		  return ERROR_INVALID_DATA;
     } else {
       // Only program if filename is specified
@@ -345,12 +346,12 @@ int Partition::ParseXMLKey(TCHAR *key, PartitionEntry *pe)
         pe->eCmd = CMD_NOP;
         return ERROR_SUCCESS;
       }
-      Log(L"filename: %s ", pe->filename);
+      wprintf(L"filename: %s ", pe->filename);
     }
 
     // File sector offset is optional for both these otherwise use default
     if( ParseXMLInt64(key,L"file_sector_offset", pe->offset, pe) == ERROR_SUCCESS ) {
-      Log("file_sector_offset: %I64d ", pe->offset);
+      wprintf(L"file_sector_offset: %I64d ", pe->offset);
     } else {
       pe->offset = (uint64)-1;
     }
@@ -359,26 +360,26 @@ int Partition::ParseXMLKey(TCHAR *key, PartitionEntry *pe)
     if( pe->eCmd == CMD_PATCH ) {
       // Get the value parameter
       if( ParseXMLInt64(key,L"value", pe->patch_value, pe) == ERROR_SUCCESS ) {
-	      Log("value: %I64d ", pe->patch_value);
+	      wprintf(L"value: %I64d ", pe->patch_value);
 	    } else {
-        Log("value missing in patch command\n");
+        wprintf(L"value missing in patch command\n");
         return ERROR_INVALID_DATA;
       }
-      Log("crc_size %i\n", (int)pe->crc_size);
+      wprintf(L"crc_size %i\n", (int)pe->crc_size);
 
       // get byte offset for patch value to be written
       if( ParseXMLInt64(key,L"byte_offset", pe->patch_offset, pe) == ERROR_SUCCESS ) {
-	      Log("patch_offset: %I64d ", pe->patch_offset);
+	      wprintf(L"patch_offset: %I64d ", pe->patch_offset);
 	    } else {
-        Log("byte_offset missing in patch command\n");
+        wprintf(L"byte_offset missing in patch command\n");
         return ERROR_INVALID_DATA;
       }
 
       // Get the size of the patch in bytes
       if( ParseXMLInt64(key,L"size_in_bytes", pe->patch_size, pe) == ERROR_SUCCESS ) {
-	     Log("patch_size: %I64d ", pe->patch_size);
+	     wprintf(L"patch_size: %I64d ", pe->patch_size);
 	    } else {
-        Log("size_in_bytes missing in patch command\n");
+        wprintf(L"size_in_bytes missing in patch command\n");
         return ERROR_INVALID_DATA;
       }
 
@@ -389,13 +390,14 @@ int Partition::ParseXMLKey(TCHAR *key, PartitionEntry *pe)
 }
 
 
-
+extern int ss;
 int Partition::ProgramPartitionEntry(Protocol *proto, PartitionEntry pe, TCHAR *key)
 {
   UNREFERENCED_PARAMETER(key);
   HANDLE hRead = INVALID_HANDLE_VALUE;
   bool bSparse = false;
   int status = ERROR_SUCCESS;
+  bool zDump = false;
 
   if (proto == NULL) {
     wprintf(L"Can't write to disk no protocol passed in.\n");
@@ -408,14 +410,56 @@ int Partition::ProgramPartitionEntry(Protocol *proto, PartitionEntry pe, TCHAR *
   else {
     // First check if the file is a sparse image then program via sparse
     SparseImage sparse;
+#ifdef USE_ZLIB
+	SparseZipImage zsparse;
+#endif // USE_ZLIB
     status = sparse.PreLoadImage(pe.filename);
     if (status == ERROR_SUCCESS) {
       bSparse = true;
       status = sparse.ProgramImage(proto, pe.start_sector*proto->GetDiskSectorSize());
     }
+#ifdef USE_ZLIB
+	else if (zsparse.PreLoadSparseZipImage(pe.filename) == ERROR_SUCCESS)
+	{
+		status = ERROR_SUCCESS;
+		wprintf(L"\nCompressed image detected\n");
+		if (wcsstr(pe.filename, _T(".szbin")) != NULL)
+		{
+			wprintf(L"\nSS selected - files extensions with .szbin will be treated as sparse zip files.\n");
+			ss = true;
+		}
+		if (ss) {
+			bSparse = true;
+			wprintf(L"\nSS selected - Compressed image will flash only data containing sectors\n");
+			status = zsparse.ProgramSparseZipImage(proto, pe.offset, proto->GetDiskHandle(), pe.start_sector, pe.num_sectors, pe.physical_partition_number);
+		}
+		else
+		{
+			zDump = true;
+			// Open the file that we are supposed to dump
+			
+			hRead = CreateFile(pe.filename,
+				GENERIC_READ,
+				FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+				NULL,
+				OPEN_EXISTING,
+				FILE_ATTRIBUTE_NORMAL,
+				NULL);
+			if (hRead == INVALID_HANDLE_VALUE) {
+				status = GetLastError();
+			}
+			else
+			{
+				status = ERROR_SUCCESS;
+			}
+
+		}
+	}
+#endif // USE_ZLIB
     else
     {
       wprintf(L"\nSparse image not detected -- loading binary\n");
+
       // Open the file that we are supposed to dump
       status = ERROR_SUCCESS;
       hRead = CreateFile(pe.filename,
@@ -429,19 +473,19 @@ int Partition::ProgramPartitionEntry(Protocol *proto, PartitionEntry pe, TCHAR *
         status = GetLastError();
       }
       else {
-        // Update the number of sectors based on real file size, rounded to next sector offset
-        DWORD dwUpperFileSize = 0;
-        DWORD dwLowerFileSize = GetFileSize(hRead, &dwUpperFileSize);
-        __int64 dwTotalSize = dwLowerFileSize + ((__int64)dwUpperFileSize << 32);
-        dwTotalSize = (dwTotalSize + proto->GetDiskSectorSize() - 1) & (__int64)~(proto->GetDiskSectorSize() - 1);
-        dwTotalSize = dwTotalSize / proto->GetDiskSectorSize();
-        if (dwTotalSize <= (__int64)pe.num_sectors) {
-          pe.num_sectors = dwTotalSize;
-        }
-        else {
-          wprintf(L"\nFileSize is > partition size, truncating file\n");
-        }
-        status = ERROR_SUCCESS;
+		// Update the number of sectors based on real file size, rounded to next sector offset
+		DWORD dwUpperFileSize = 0;
+		DWORD dwLowerFileSize = GetFileSize(hRead, &dwUpperFileSize);
+		__int64 dwTotalSize = dwLowerFileSize + ((__int64)dwUpperFileSize << 32);
+		dwTotalSize = (dwTotalSize + proto->GetDiskSectorSize() - 1) & (__int64)~(proto->GetDiskSectorSize() - 1);
+		dwTotalSize = dwTotalSize / proto->GetDiskSectorSize();
+		if (dwTotalSize <= (__int64)pe.num_sectors || (pe.num_sectors == 0)) {
+			pe.num_sectors = dwTotalSize;
+		}
+		else {
+			wprintf(L"\nFileSize is > partition size, truncating file\n");
+		}
+		status = ERROR_SUCCESS;
       }
     }
   }
@@ -449,7 +493,7 @@ int Partition::ProgramPartitionEntry(Protocol *proto, PartitionEntry pe, TCHAR *
   if (status == ERROR_SUCCESS && !bSparse) {
     // Fast copy from input file to output disk
     wprintf(L"In offset: %I64d out offset: %I64d sectors: %I64d\n", pe.offset, pe.start_sector, pe.num_sectors);
-    status = proto->FastCopy(hRead, pe.offset, proto->GetDiskHandle(),  pe.start_sector, pe.num_sectors,pe.physical_partition_number);
+    status = proto->FastCopy(hRead, pe.offset, proto->GetDiskHandle(),  pe.start_sector, pe.num_sectors,pe.physical_partition_number, zDump);
     CloseHandle(hRead);
   }
   return status;
@@ -483,7 +527,7 @@ int Partition::ProgramImage(Protocol *proto)
       status = proto->DumpDiskContents(pe.start_sector, pe.num_sectors, pe.filename, pe.physical_partition_number, NULL);
     }
     else if (pe.eCmd == CMD_ZEROOUT) {
-      status = proto->WipeDiskContents(pe.start_sector, pe.num_sectors, NULL);
+      status = proto->WipeDiskContents(pe.start_sector, pe.num_sectors, NULL, pe.physical_partition_number);
     }
 
     if (status != ERROR_SUCCESS) {

@@ -12,8 +12,8 @@
 /*=============================================================================
                         Edit History
 
-$Header: //source/qcom/qct/platform/uefi/workspaces/pweber/apps/8x26_emmcdl/emmcdl/main/latest/src/sahara.cpp#9 $
-$DateTime: 2015/04/29 17:06:00 $ $Author: pweber $
+$Header: //deploy/qcom/qct/platform/wpci/prod/woa/emmcdl/main/latest/src/sahara.cpp#19 $
+$DateTime: 2018/09/03 09:38:50 $ $Author: wmcisvc $
 
 when       who     what, where, why
 -------------------------------------------------------------------------------
@@ -21,6 +21,7 @@ when       who     what, where, why
 =============================================================================*/
 
 #include "sahara.h"
+extern int conn_timeout;
 
 Sahara::Sahara(SerialPort *port, HANDLE hLogFile)
 {
@@ -53,10 +54,45 @@ int Sahara::DeviceReset()
   return sport->Write((BYTE *)&exe_cmd, sizeof(exe_cmd));
 }
 
+int Sahara::MemoryDump(UINT64 addr, UINT32 len)
+{
+  int status;
+  DWORD bytesRead;
+
+  memory_read_64_t read_cmd;
+  read_cmd.cmd = SAHARA_64BIT_MEMORY_DEBUG;
+  read_cmd.len = sizeof(read_cmd);
+  read_cmd.addr = addr;
+  read_cmd.data_len = len;
+
+  if( len > 256 ) {
+    wprintf(L"Can only dump max 256 bytes\n");
+    return -ERROR_INVALID_PARAMETER;
+  }
+  wprintf(L"Dumping at addr: 0x%x\n",read_cmd.addr);
+  wprintf(L"Data Length: 0x%x\n",read_cmd.data_len);
+
+  status = sport->Write((BYTE *)&read_cmd, sizeof(read_cmd));
+  if (status != ERROR_SUCCESS) {
+    return -ERROR_INVALID_HANDLE;
+  }
+
+  BYTE raw_data[256];
+  bytesRead = len;
+  status = sport->Read(raw_data, &bytesRead);
+  for(UINT32 i=0; i < bytesRead; i++) {
+    wprintf(L"0x%x ",raw_data[i]);
+    // Insert a newline every 16 characters
+    if( ((i+1) & 0xF) == 0 ) wprintf(L"\n");
+  }
+  wprintf(L"\n");
+  return ERROR_SUCCESS;
+}
+
 int Sahara::ReadData(int cmd, BYTE *buf, int len)
 {
   int status;
-  DWORD bytesRead; 
+  DWORD bytesRead;
 
   execute_cmd_t exe_cmd;
   exe_cmd.cmd = SAHARA_EXECUTE_REQ;
@@ -72,6 +108,10 @@ int Sahara::ReadData(int cmd, BYTE *buf, int len)
   bytesRead = sizeof(exe_rsp);
   status = sport->Read((BYTE*)&exe_rsp, &bytesRead);
   if (exe_rsp.data_len > 0 && bytesRead == sizeof(exe_rsp)) {
+    if (exe_rsp.data_len > (DWORD)(len)) {
+      wprintf(L"Data Buffer not sufficient; Expected buffer (%d) ,Actual Buffer (%d)\n", exe_rsp.data_len, len);
+      return -ERROR_INVALID_DATA;
+    }
     exe_cmd.cmd = SAHARA_EXECUTE_DATA;
     exe_cmd.len = sizeof(exe_cmd);
     exe_cmd.client_cmd = cmd;
@@ -104,10 +144,10 @@ int Sahara::DumpDeviceInfo(pbl_info_t *pbl_info)
 
   status = sport->Read((BYTE *)&cmd_rdy, &bytesRead);
   if (status != ERROR_SUCCESS || bytesRead == 0 ) {
-    Log(L"No response from device after switch mode command\n");
+    wprintf(L"No response from device after switch mode command\n");
     return ERROR_INVALID_PARAMETER;
   } else if (cmd_rdy.cmd != SAHARA_CMD_READY) {
-    Log(L"Unexpected response for command mode %i\n", cmd_rdy.cmd);
+    wprintf(L"Unexpected response for command mode %i\n", cmd_rdy.cmd);
     return ERROR_INVALID_PARAMETER;
   }
 
@@ -128,9 +168,59 @@ int Sahara::DumpDeviceInfo(pbl_info_t *pbl_info)
   if (status > 0 && status < sizeof(dataBuf)) {
     pbl_info->pbl_sw = dataBuf[0];
   }
-  
+
   ModeSwitch(0);
   return ERROR_SUCCESS;
+}
+
+int Sahara::DumpDebugInfo(TCHAR *szFileName)
+{
+    DWORD dataBuf[256];
+    HANDLE hDbgFile = NULL;
+    DWORD dwBytesOut;
+    int status = ERROR_SUCCESS;
+
+    // Connect to the device in command mode
+    status = ConnectToDevice(true, 3);
+    if (status != ERROR_SUCCESS) {
+        return status;
+    }
+
+   // Make sure we get command ready back
+    execute_rsp_t cmd_rdy;
+    DWORD bytesRead = sizeof(cmd_rdy);
+    status = sport->Read((BYTE *)&cmd_rdy, &bytesRead);
+    if (status != ERROR_SUCCESS || bytesRead == 0) {
+        wprintf(L"No response from device after switch mode command\n");
+        return ERROR_INVALID_PARAMETER;
+    }
+    else if (cmd_rdy.cmd != SAHARA_CMD_READY) {
+        wprintf(L"Unexpected response for command mode %i\n", cmd_rdy.cmd);
+        return ERROR_INVALID_PARAMETER;
+    }
+    memset(dataBuf, 0x0, sizeof(dataBuf));
+    status = ReadData(SAHARA_EXEC_CMD_READ_DEBUG_DATA, (BYTE*)dataBuf, sizeof(dataBuf));
+    if (status > 0 && status < sizeof(dataBuf)) {
+        hDbgFile = CreateFile(szFileName,
+                              GENERIC_WRITE | GENERIC_READ,
+                              0,    // We want exclusive access to this disk
+                              NULL,
+                              CREATE_ALWAYS,
+                              FILE_ATTRIBUTE_NORMAL,
+                              NULL);
+        if (hDbgFile == INVALID_HANDLE_VALUE) {
+            return GetLastError();
+        }
+        wprintf(L"Debug Info is %d bytes\n", status);
+        WriteFile(hDbgFile, (BYTE*)dataBuf, status, &dwBytesOut, NULL);
+        CloseHandle(hDbgFile);
+    }
+    else {
+        wprintf(L"Failure in reading Debug Info(=%d)\n", status);
+    }
+
+    ModeSwitch(0);
+    return ERROR_SUCCESS;
 }
 
 int Sahara::ModeSwitch(int mode)
@@ -145,7 +235,7 @@ int Sahara::ModeSwitch(int mode)
   cmd_switch_mode.len = sizeof(cmd_switch_mode);
   cmd_switch_mode.client_cmd = mode;
   status = sport->Write((BYTE*)&cmd_switch_mode, sizeof(cmd_switch_mode));
-  
+
   // Read the response to switch mode if the device responds
   status = sport->Read((BYTE *)&read_data_req, &bytesRead);
   return status;
@@ -160,9 +250,16 @@ int Sahara::LoadFlashProg(TCHAR *szFlashPrg)
   DWORD status = ERROR_SUCCESS;
   DWORD bytesRead = sizeof(read_data64_req);
   DWORD totalBytes = 0, read_data_offset = 0, read_data_len = 0;
-  BYTE dataBuf[8192];
+  done_t done_pkt = { 0 };
+  HANDLE hFlashPrg = INVALID_HANDLE_VALUE;
+  BYTE *dataBuf = (BYTE *)malloc(128*1024);
 
-  HANDLE hFlashPrg = CreateFile( szFlashPrg,
+  if (dataBuf == NULL) {
+    status = ERROR_OUTOFMEMORY;
+    goto LoadFlashProgExit;
+  }
+
+  hFlashPrg = CreateFile( szFlashPrg,
                      GENERIC_READ,
                      FILE_SHARE_READ,
                      NULL,
@@ -170,16 +267,22 @@ int Sahara::LoadFlashProg(TCHAR *szFlashPrg)
                      0,
                      NULL);
   if( hFlashPrg == INVALID_HANDLE_VALUE ) {
-    return ERROR_OPEN_FAILED;
+    status = ERROR_OPEN_FAILED;
+    goto LoadFlashProgExit;
   }
 
-  Log(L"Successfully open flash programmer to write: %s\n",szFlashPrg);
+  wprintf(L"Successfully open flash programmer to write: %s\n",szFlashPrg);
 
   for(;;) {
 
-    memset(&read_cmd_hdr,0,sizeof(read_cmd_hdr));
-    bytesRead = sizeof(read_cmd_hdr);
-    status = sport->Read((BYTE *)&read_cmd_hdr,&bytesRead);
+    // Try to receive data up to 5 times if device is slow
+    for(int i=0; i < 5; i++) {
+      memset(&read_cmd_hdr,0,sizeof(read_cmd_hdr));
+      bytesRead = sizeof(read_cmd_hdr);
+      status = sport->Read((BYTE *)&read_cmd_hdr,&bytesRead);
+      if (bytesRead > 0) break;
+      Sleep(100);
+    }
 
     // Check if it is a 32-bit or 64-bit read
     if (read_cmd_hdr.cmd == SAHARA_64BIT_MEMORY_READ_DATA)
@@ -189,6 +292,11 @@ int Sahara::LoadFlashProg(TCHAR *szFlashPrg)
       status = sport->Read((BYTE *)&read_data64_req, &bytesRead);
       read_data_offset = (UINT32)read_data64_req.data_offset;
       read_data_len = (UINT32)read_data64_req.data_len;
+      if (read_data_len > (128 * 1024)) {
+        wprintf(L"Trying to read too large a packet\n");
+        status = ERROR_INSUFFICIENT_BUFFER;
+        goto LoadFlashProgExit;
+      }
     }
     else if (read_cmd_hdr.cmd == SAHARA_READ_DATA)
     {
@@ -205,61 +313,74 @@ int Sahara::LoadFlashProg(TCHAR *szFlashPrg)
 
     // Set the offset in the file requested
     if (SetFilePointer(hFlashPrg, read_data_offset, NULL, FILE_BEGIN) == INVALID_SET_FILE_POINTER) {
-      Log(L"Failed to update FlashProgrammer pointer offset\n");
-      CloseHandle(hFlashPrg);
-      return GetLastError();
+      wprintf(L"Failed to update FlashProgrammer pointer offset\n");
+      status = GetLastError();
+      goto LoadFlashProgExit;
     }
 
     if (!ReadFile(hFlashPrg, dataBuf, read_data_len, &bytesRead, NULL)) {
-      Log(L"Failed to read data from flash programmer file\n");
-      CloseHandle(hFlashPrg);
-      return GetLastError();
+      wprintf(L"Failed to read data from flash programmer file\n");
+      status = GetLastError();
+      goto LoadFlashProgExit;
     }
 
-    //Log(L"FileOffset %i bytesRead %i\n", read_data_offset, bytesRead);
+    //wprintf(L"FileOffset: %i requested: %i bytesWrite: %i\n", read_data_offset, read_data_len, bytesRead);
 
     if (sport->Write(dataBuf,bytesRead) != ERROR_SUCCESS ) {
-      Log(L"Failed to write data to device in IMEM\n");
-      CloseHandle(hFlashPrg);
-      return GetLastError();
+      wprintf(L"Failed to write data to device in IMEM\n");
+      status = GetLastError();
+      goto LoadFlashProgExit;
     }
     totalBytes += bytesRead;
   }
 
   // Done loading flash programmer so close handle
   CloseHandle(hFlashPrg);
+  hFlashPrg = INVALID_HANDLE_VALUE;
+
+  if (bytesRead == 0) {
+    wprintf(L"Device failed to send any commands after last command\n");
+    status = ERROR_TIMEOUT;
+    goto LoadFlashProgExit;
+  }
 
   if (read_cmd_hdr.cmd != SAHARA_END_TRANSFER) {
-	Log(L"Expecting SAHARA_END_TRANSFER but found: %i\n", read_cmd_hdr.cmd);
-    return ERROR_WRITE_FAULT;
+	  wprintf(L"Expecting SAHARA_END_TRANSFER but found: %i\n", read_cmd_hdr.cmd);
+    status = ERROR_WRITE_FAULT;
+    goto LoadFlashProgExit;
   }
 
   // Read the remaining part of the end transfer packet
   bytesRead = sizeof(read_img_end);
   status = sport->Read((BYTE *)&read_img_end, &bytesRead);
   if (read_img_end.status != SAHARA_ERROR_SUCCESS) {
-	  Log(L"Image load failed with status: %i\n", read_img_end.status);
-	  return read_img_end.status;
+	  wprintf(L"Image load failed with status: %i\n", read_img_end.status);
+	  status = read_img_end.status;
+    goto LoadFlashProgExit;
   }
 
-  done_t done_pkt = {0};
   done_pkt.cmd = SAHARA_DONE_REQ;
   done_pkt.len = 8;
   status = sport->Write((BYTE *)&done_pkt,8);
   if( status != ERROR_SUCCESS) {
-    return status;
+    goto LoadFlashProgExit;
   }
-  
+
   bytesRead = sizeof(done_pkt);
   status = sport->Read((BYTE*)&done_pkt,&bytesRead);
   if( done_pkt.cmd != SAHARA_DONE_RSP) {
-	Log(L"Expecting SAHARA_DONE_RSP but found: %i", done_pkt.cmd);
-    return ERROR_WRITE_FAULT;
+	wprintf(L"Expecting SAHARA_DONE_RSP but found: %i", done_pkt.cmd);
+    status = ERROR_WRITE_FAULT;
+    goto LoadFlashProgExit;
   }
 
-  // After Sahara is done set timeout back to 500ms for firehose
-  sport->SetTimeout(500);
+  // After Sahara is done set timeout back to default for firehose
+  sport->SetTimeout(conn_timeout);
   Sleep(500);
+
+LoadFlashProgExit:
+  free(dataBuf);
+  if(hFlashPrg != INVALID_HANDLE_VALUE) CloseHandle(hFlashPrg);
   return status;
 }
 
@@ -284,10 +405,12 @@ int Sahara::ConnectToDevice(bool bReadHello, int mode)
     sport->SetTimeout(10);
     status = sport->Read((BYTE *)&hello_req, &bytesRead);
     if (hello_req.cmd != SAHARA_HELLO_REQ) {
+      // Read out any pending data to get to a good state
+      while(bytesRead > 0) sport->Read((BYTE *)&hello_req, &bytesRead);
       // If no hello packet is waiting then try PBL hack to bring device to good state
       if (PblHack() != ERROR_SUCCESS) {
         // If we fail to connect try to do a mode switch command to get hello packet and try again
-        Log("Did not receive Sahara hello packet from device\n");
+        wprintf(L"Did not receive Sahara hello packet from device\n");
         return ERROR_INVALID_HANDLE;
       }
     }
@@ -307,7 +430,7 @@ int Sahara::ConnectToDevice(bool bReadHello, int mode)
   status = sport->Write((BYTE *)&hello_req, sizeof(hello_req));
 
   if (status != ERROR_SUCCESS) {
-    Log("Failed to write hello response back to device\n");
+    wprintf(L"Failed to write hello response back to device\n");
     return ERROR_INVALID_HANDLE;
  }
 
@@ -331,11 +454,12 @@ int Sahara::PblHack(void)
 
   sport->SetTimeout(10);
   status = sport->Read((BYTE *)&cmd_rdy, &bytesRead);
+  sport->SetTimeout(conn_timeout);
   if (status != ERROR_SUCCESS || bytesRead == 0) {
     // Assume there was a data toggle issue and send the mode switch command
     return ModeSwitch(0);
   } else if (cmd_rdy.cmd != SAHARA_CMD_READY) {
-    Log("PblHack: Error - %i\n", cmd_rdy.cmd);
+    wprintf(L"PblHack: did not work - %i\n", cmd_rdy.cmd);
     return ERROR_INVALID_DATA;
   }
 

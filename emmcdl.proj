@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <PropertyGroup>
+    <!-- First check for the extension to be installed with the WDK. -->
+    <QCExtPath Condition="'$(QCExtPath)'=='' and Exists('$(MSBuildExtensionsPath)\Qualcomm')">$(MSBuildExtensionsPath)\Qualcomm</QCExtPath>
+  </PropertyGroup>
+
+  <Import Condition="'$(QualcommCommonPropsImported)' != 'true'" Project="$(QCExtPath)\Qualcomm.Common.props" />
+  
+  <ItemGroup>
+    <Solution Include="$(MSBuildProjectDirectory)\emmcdl.wp63.sln" />
+  </ItemGroup>
+
+  <Target Name="Build">
+  <!-- Don't change the order in below 3 lines for SDM850 -->
+    <!-- <MSBuild Projects="@(Solution)"/> -->
+	<MSBuild Projects="@(Solution)" Properties="Platform=Win32"/>
+	<MSBuild Projects="@(Solution)" />
+  </Target>
+  
+  <Target Name="Clean">
+  <!-- Don't change the order in below 3 lines for SDM850 -->
+    <!-- <MSBuild Projects="@(Solution)"/> -->
+	<MSBuild Projects="@(Solution)" Targets="clean" />
+	<MSBuild Projects="@(Solution)" Properties="Platform=Win32" Targets="clean"/>
+  </Target>
+</Project>

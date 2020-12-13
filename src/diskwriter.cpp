@@ -12,8 +12,8 @@
 /*=============================================================================
                         Edit History
 
-$Header: //source/qcom/qct/platform/uefi/workspaces/pweber/apps/8x26_emmcdl/emmcdl/main/latest/src/diskwriter.cpp#12 $
-$DateTime: 2015/04/29 17:06:00 $ $Author: pweber $
+$Header: //deploy/qcom/qct/platform/wpci/prod/woa/emmcdl/main/latest/src/diskwriter.cpp#25 $
+$DateTime: 2019/08/12 05:20:06 $ $Author: wmcisvc $
 
 when       who     what, where, why
 -------------------------------------------------------------------------------
@@ -187,8 +187,9 @@ int DiskWriter::InitDiskList(bool verbose)
   HDEVINFO hDevInfo = SetupDiGetClassDevs(&GUID_DEVINTERFACE_COMPORT,NULL,NULL,DIGCF_DEVICEINTERFACE|DIGCF_PRESENT);
   DEVPROPTYPE ulPropertyType = DEVPROP_TYPE_STRING;
   DWORD dwSize;
-#endif //ARM
-
+#else //ARM
+  UNREFERENCED_PARAMETER(verbose);
+#endif
   if( disks == NULL || volumes == NULL ) {
     return ERROR_INVALID_PARAMETER;
   }
@@ -208,7 +209,7 @@ int DiskWriter::InitDiskList(bool verbose)
       }
       // successfully found entry print out the info
       if( SetupDiGetDeviceProperty(hDevInfo,&DeviceInfoData,&DEVPKEY_Device_FriendlyName,&ulPropertyType,(BYTE*)szBuffer, sizeof(szBuffer), &dwSize, 0)) {
-        if( (GetLastError() == ERROR_SUCCESS) && wcsstr(szBuffer,L"QDLoader 9008") != NULL ) {
+        if( (GetLastError() == ERROR_SUCCESS) && (wcsstr(szBuffer,L"QDLoader 9008") || wcsstr(szBuffer, L"EDL 90E2"))!= NULL ) {
           wprintf(szBuffer);
           // Get the serial number and display it if verbose is enabled
           if (verbose)
@@ -654,6 +655,8 @@ int DiskWriter::OpenDevice(int dn)
 
   // All associated volumes have been unlocked so now open handle to physical disk
   TCHAR tPath[MAX_PATH];
+  //reset DISK_SECTOR_SIZE as it is hard coded to 512 in the constructor.
+  DISK_SECTOR_SIZE = de.blocksize;  
   swprintf_s(tPath, _T("\\\\.\\PhysicalDrive%i"), dn);
   wprintf(tPath);
   // Create the file using the volume name
@@ -739,10 +742,13 @@ int DiskWriter::RawReadTest(uint64 offset)
   return status;
 }
 
-int DiskWriter::FastCopy(HANDLE hRead, __int64 sectorRead, HANDLE hWrite, __int64 sectorWrite, uint64 sectors, UINT8 partNum)
+extern int sd;
+static unsigned char chkbuf[MAX_TRANSFER_SIZE];
+int DiskWriter::FastCopy(HANDLE hRead, __int64 sectorRead, HANDLE hWrite, __int64 sectorWrite, uint64 sectors, UINT8 partNum, BOOL zDump)
 {  // Set up the overlapped structure
   UNREFERENCED_PARAMETER(partNum);
-  OVERLAPPED ovlWrite, ovlRead;
+  UNREFERENCED_PARAMETER(zDump);
+  OVERLAPPED ovlWrite, ovlRead, ovlsparse;
   int stride;
   uint64 sec;
   DWORD bytesOut = 0;
@@ -751,6 +757,30 @@ int DiskWriter::FastCopy(HANDLE hRead, __int64 sectorRead, HANDLE hWrite, __int6
   int status = ERROR_SUCCESS;
   BOOL bWriteDone = TRUE;
   BOOL bBuffer1 = TRUE;
+
+#ifdef USE_ZLIB
+  LONGLONG destsparseoffset = 0;
+  LONGLONG destsparsesize = 0;
+  LONGLONG destdatasize = 0;
+
+  //Compression variables.
+  int ret;
+  int flush;
+  unsigned zBytesWrite=0;
+  
+  z_stream strm;
+  /* allocate deflate state */
+  strm.zalloc = Z_NULL;
+  strm.zfree = Z_NULL;
+  strm.opaque = Z_NULL;
+  ret = deflateInit(&strm, Z_DEFAULT_COMPRESSION);
+  if (ret != Z_OK)
+	  return ret;
+#endif // USE_ZLIB
+
+  UINT64 ticks = GetTickCount64();
+  UINT64 curtick = 0;
+
 
   if (sectorWrite < 0)
   {
@@ -766,6 +796,11 @@ int DiskWriter::FastCopy(HANDLE hRead, __int64 sectorRead, HANDLE hWrite, __int6
   ovlWrite.Offset = (DWORD)(sectorWrite*DISK_SECTOR_SIZE);
   ovlWrite.OffsetHigh = ((sectorWrite*DISK_SECTOR_SIZE) >> 32);
 
+  ovlsparse.hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+  if (ovlsparse.hEvent == NULL) return ERROR_OUTOFMEMORY;
+  ovlsparse.Offset = (DWORD)(sectorWrite*DISK_SECTOR_SIZE);
+  ovlsparse.OffsetHigh = ((sectorWrite*DISK_SECTOR_SIZE) >> 32);
+
   ovlRead.hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
   if (ovlRead.hEvent == NULL) return ERROR_OUTOFMEMORY;
   ovlRead.Offset = (DWORD)(sectorRead*DISK_SECTOR_SIZE);
@@ -778,6 +813,25 @@ int DiskWriter::FastCopy(HANDLE hRead, __int64 sectorRead, HANDLE hWrite, __int6
     bytesRead = stride*DISK_SECTOR_SIZE;
   }
 
+  BOOL sparseret = false;
+  FILE_ZERO_DATA_INFORMATION sparsezerodata = { 0,0 };
+  if (sd)
+  {
+	  sparseret = DeviceIoControl((HANDLE)hWrite,                     // handle to a file
+		  FSCTL_SET_SPARSE,                     // dwIoControlCode
+		  NULL, // input buffer
+		  NULL,                // size of input buffer
+		  NULL,                                 // lpOutBuffer
+		  0,                                    // nOutBufferSize
+		  &bytesRead,            // number of bytes returned
+		  &ovlsparse);        // OVERLAPPED structure
+	  if (!sparseret)
+	  {
+		  status = GetLastError();
+		  return status;
+	  }
+
+  }
 
   sec = 0;
   while (sec < sectors) {
@@ -804,8 +858,8 @@ int DiskWriter::FastCopy(HANDLE hRead, __int64 sectorRead, HANDLE hWrite, __int6
       bytesRead = (bytesRead + DISK_SECTOR_SIZE - 1) & ~(DISK_SECTOR_SIZE - 1);
     }
 
+    if (ovlRead.Offset + bytesRead < ovlRead.Offset) ovlRead.OffsetHigh++;
     ovlRead.Offset += bytesRead;
-    if (ovlRead.Offset < bytesRead) ovlRead.OffsetHigh++;
 
     if (!bWriteDone) {
       // Wait for the previous write to complete before we start a new one
@@ -814,24 +868,212 @@ int DiskWriter::FastCopy(HANDLE hRead, __int64 sectorRead, HANDLE hWrite, __int6
         status = GetLastError();
         break;
       }
+      // Increment the offset for the next write now that this one has completed
+      if (ovlWrite.Offset + bytesOut < ovlWrite.Offset) ovlWrite.OffsetHigh++;
+      ovlWrite.Offset += bytesOut;
+
       status = ERROR_SUCCESS;
     }
     
-    // Now start a write for the corresponding buffer we just read
-    if (bBuffer1) bWriteDone = WriteFile(hWrite, buffer1, bytesRead, NULL, &ovlWrite);
-    else bWriteDone = WriteFile(hWrite, buffer2, bytesRead, NULL, &ovlWrite);
+	sec += stride;
+	sectorRead += stride;
+#ifdef USE_ZLIB
+	if (zlibDump)
+	{
+		// ---------------------------- Compression ----------------------------------------------------------------
+		strm.avail_in = bytesRead;
+		if (sec >= sectors)	flush = Z_FINISH;
+		else flush = Z_NO_FLUSH;
+
+		if (bBuffer1) strm.next_in = (Bytef *)buffer1;
+		else strm.next_in = (Bytef *)buffer2;
+
+		/* run deflate() on input until output buffer not full, finish
+		compression if all of source has been read in */
+		do {
+			strm.avail_out = MAX_TRANSFER_SIZE;
+
+			if (bBuffer1) strm.next_out = (Bytef *)zbuffer1;
+			else strm.next_out = (Bytef *)zbuffer2;
+
+			ret = deflate(&strm, flush);    /* no bad return value */
+			if (ret == Z_STREAM_ERROR)  /* state not clobbered */
+			{
+				wprintf(L"\nCompress stream failed");
+				return Z_STREAM_ERROR;
+			}
+			else
+			{
+				zBytesWrite = MAX_TRANSFER_SIZE - strm.avail_out;
+				bytesRead = 0;
+				//wprintf(L"Ticks : %i : zBytesWrite : %i  ", (GetTickCount64() - ticks + 1), zBytesWrite);
+				
+				if (zBytesWrite > 0)
+				{
+
+					//Write to zbin file
+					if (bBuffer1) bWriteDone = WriteFile(hWrite, zbuffer1, zBytesWrite, &bytesRead, &ovlWrite);
+					else bWriteDone = WriteFile(hWrite, zbuffer2, zBytesWrite, &bytesRead, &ovlWrite);
+
+					// Check if write already completed update the offset otherwise we update it when we finish reading
+					if (bWriteDone)
+					{
+						if (ovlWrite.Offset + bytesRead < ovlWrite.Offset) ovlWrite.OffsetHigh++;
+						ovlWrite.Offset += bytesRead;
+						//wprintf(L"\n bWriteDone is more : %i : %i : %i\n", zBytesWrite, bWriteDone, bytesRead);
+					}
+				}
+			}
+
+		} while (strm.avail_out == 0);
+		// ---------------------------- end Compression ----------------------------------------------------------------
+	}
+	else if (sd)
+	{
+		DWORD dwTemp;
+		BOOL bStatus = false;
+		if (bBuffer1)
+		{
+			if (memcmp(chkbuf, buffer1, MAX_TRANSFER_SIZE))
+			{
+				bWriteDone = WriteFile(hWrite, buffer1, bytesRead, NULL, &ovlWrite);
+				//wprintf(L"\nDatapart: %lu : %lu \n", destsparsesize, destsparseoffset);
+				if (destsparsesize > 0)
+				{
+					
+					sparsezerodata.BeyondFinalZero.QuadPart = destsparseoffset;
+					bStatus = DeviceIoControl(hWrite,
+						FSCTL_SET_ZERO_DATA,
+						&sparsezerodata,
+						sizeof(sparsezerodata),
+						NULL,
+						0,
+						&dwTemp,
+						&ovlsparse);
+					if (!bStatus)
+					{
+						status = GetLastError();
+						return status;
+					}
+					//wprintf(L"\nDeviceIoControl: %lu : %lu : %lu\n", destsparsesize, sparsezerodata.FileOffset.QuadPart, sparsezerodata.BeyondFinalZero.QuadPart);
+					destsparsesize = 0;
+				}
+				if (destdatasize == 0)
+				{
+					wprintf(L"\n< DestData Start: %I64u >\n", (sectorRead - stride));
+				}
+				destdatasize++;
+			}
+			else
+			{
+				if (destsparsesize == 0)
+				{
+					//wprintf(L"\n dataspare offse : %lu", destsparseoffset);
+					sparsezerodata.FileOffset.QuadPart = destsparseoffset;
+				}
+				destsparsesize += 1;
+				if (destdatasize > 0)
+				{
+					wprintf(L"\n< DestData Size: %I64u >\n", destdatasize*stride);
+					destdatasize = 0;
+				}
+
+			}
+		}
+		else
+		{
+			if (memcmp(chkbuf, buffer2, MAX_TRANSFER_SIZE))
+			{
+				bWriteDone = WriteFile(hWrite, buffer2, bytesRead, NULL, &ovlWrite);
+				//wprintf(L"\nDatapart: %lu : %lu \n", destsparsesize, destsparseoffset);
+				if (destsparsesize > 0)
+				{
+					sparsezerodata.BeyondFinalZero.QuadPart = destsparseoffset;
+					
+					bStatus = DeviceIoControl(hWrite,
+						FSCTL_SET_ZERO_DATA,
+						&sparsezerodata,
+						sizeof(sparsezerodata),
+						NULL,
+						0,
+						&dwTemp,
+						&ovlsparse);
+					if (!bStatus)
+					{
+						status = GetLastError();
+						return status;
+					}
+					//wprintf(L"\nDeviceIoControl: %lu : %lu : %lu\n", destsparsesize, sparsezerodata.FileOffset.QuadPart, sparsezerodata.BeyondFinalZero.QuadPart);
+					destsparsesize = 0;
+					if (destdatasize == 0)
+					{
+						wprintf(L"\n< DestData Start: %I64u >\n", (sectorRead - stride));
+					}
+					destdatasize++;
+				}
+			}
+			else
+			{
+				if (destsparsesize == 0)
+				{
+					//wprintf(L"\n dataspare offse : %lu\n", destsparseoffset);
+					sparsezerodata.FileOffset.QuadPart = destsparseoffset;
+				}
+				destsparsesize += 1;
+				if (destdatasize > 0)
+				{
+					wprintf(L"\n< DestData Size: %I64u >\n", destdatasize*stride);
+					destdatasize = 0;
+				}
+			}
+		}
+		// Check if write already completed update the offset otherwise we update it when we finish reading
+		if (bWriteDone)
+		{
+			if (ovlWrite.Offset + bytesRead < ovlWrite.Offset) ovlWrite.OffsetHigh++;
+			ovlWrite.Offset += bytesRead;
+
+			if (ovlsparse.Offset + bytesRead < ovlsparse.Offset) ovlsparse.OffsetHigh++;
+			ovlsparse.Offset += bytesRead;
+
+			//destsparseoffset += bytesRead;
+			destsparseoffset += bytesRead;
+		}
+		if (sec >= sectors)
+		{
+			wprintf(L"\n< DestData Size: %I64u >\n", destdatasize*stride);
+		}
+
+	}
+	else
+#endif   // USE_ZLIB
+	{
+		// Now start a write for the corresponding buffer we just read
+		if (bBuffer1) bWriteDone = WriteFile(hWrite, buffer1, bytesRead, NULL, &ovlWrite);
+		else bWriteDone = WriteFile(hWrite, buffer2, bytesRead, NULL, &ovlWrite);
+		
+		// Check if write already completed update the offset otherwise we update it when we finish reading
+		if (bWriteDone)
+		{
+			if (ovlWrite.Offset + bytesRead < ovlWrite.Offset) ovlWrite.OffsetHigh++;
+			ovlWrite.Offset += bytesRead;
+		}
+	}
 
     bBuffer1 = !bBuffer1;
-    sec += stride;
-    sectorRead += stride;
 
-    ovlWrite.Offset += bytesRead;
-    if (ovlWrite.Offset < bytesOut) ovlWrite.OffsetHigh++;
-
-    wprintf(L"Sectors remaining: %i      \r", (int)(sectors - sec));
+    wprintf(L"Sectors remaining: %i \r", (int)(sectors - sec));
   }
-  wprintf(L"\nStatus = %i\n",status);
 
+#ifdef USE_ZLIB
+  if (zlibDump)
+  {
+	  wprintf(L"\nClosing compression stream");
+	  (void)deflateEnd(&strm);
+  }
+#endif // USE_ZLIB
+
+  wprintf(L"\nStatus = %i\n", status);
   // If we hit end of file and we read some data then round up to nearest block and write it out and wait
   // for it to complete else the next operation might fail.
   if ((sec < sectors) && (bytesRead > 0) && (status == ERROR_SUCCESS)) {
@@ -847,8 +1089,23 @@ int DiskWriter::FastCopy(HANDLE hRead, __int64 sectorRead, HANDLE hWrite, __int6
     if (!bWriteDone) status = GetLastError();
   }
 
+
+  curtick = GetTickCount64() - (ticks + 1);
+  UINT64 mb = 0;
+  if (DISK_SECTOR_SIZE == 512)
+  {
+	  mb = (sectors/2)/1024;
+  }
+  else 
+  {
+	  mb = (sectors*4)/1024;
+  }
+  wprintf(L"\nTime elapsed %f secs, Datatransfer at %f MB/s\n", (float)curtick / 1000, (float)((mb*1000)/curtick));
+  
+
   CloseHandle(ovlRead.hEvent);
   CloseHandle(ovlWrite.hEvent);
+  CloseHandle(ovlsparse.hEvent);
   return status;
 }
 

@@ -12,8 +12,8 @@
 /*=============================================================================
                         Edit History
 
-$Header: //source/qcom/qct/platform/uefi/workspaces/pweber/apps/8x26_emmcdl/emmcdl/main/latest/inc/emmcdl.h#3 $
-$DateTime: 2014/06/11 17:27:14 $ $Author: pweber $
+$Header: //deploy/qcom/qct/platform/wpci/prod/woa/emmcdl/main/latest/inc/emmcdl.h#8 $
+$DateTime: 2016/02/17 11:22:20 $ $Author: wmcisvc $
 
 when       who     what, where, why
 -------------------------------------------------------------------------------
@@ -41,5 +41,6 @@ enum emmc_cmd_e {
   EMMC_CMD_SPLIT_FFU,
   EMMC_CMD_RAW,
   EMMC_CMD_LOAD_FFU,
-  EMMC_CMD_INFO
+  EMMC_CMD_INFO,
+  EMMC_CMD_DEBUG_INFO
 };

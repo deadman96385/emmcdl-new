@@ -12,8 +12,8 @@
 /*=============================================================================
                         Edit History
 
-$Header: //source/qcom/qct/platform/uefi/workspaces/pweber/apps/8x26_emmcdl/emmcdl/main/latest/inc/xmlparser.h#2 $
-$DateTime: 2014/08/05 11:44:01 $ $Author: pweber $
+$Header: //deploy/qcom/qct/platform/wpci/prod/woa/emmcdl/main/latest/inc/xmlparser.h#2 $
+$DateTime: 2013/12/10 21:28:05 $ $Author: wmcisvc $
 
 when       who     what, where, why
 -------------------------------------------------------------------------------

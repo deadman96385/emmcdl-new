@@ -1,0 +1,266 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!-- Set path to QC build extensions installed with WDK. -->
+  <PropertyGroup>
+    <QCExtPath Condition="'$(QCExtPath)'=='' and Exists('$(MSBuildExtensionsPath)\Qualcomm\Qualcomm.tasks')">$(MSBuildExtensionsPath)\Qualcomm</QCExtPath>
+  </PropertyGroup>
+  <!-- Props file is used to set tool change based on wdk being used.-->
+  <Import Condition="'$(QualcommWdkPropsImported)' !='true' and Exists('$(QCExtPath)\Qualcomm.Wdk.props')" Project="$(QCExtPath)\Qualcomm.Wdk.props" />
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|ARM64">
+      <Configuration>Debug</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|ARM64">
+      <Configuration>Release</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{900E6527-EA7D-41AA-B962-9AE765595ECD}</ProjectGuid>
+    <Keyword>emmcdlProj</Keyword>
+    <RootNamespace>emmcdl.wp63.vcxproj</RootNamespace>
+    <ProjectName>emmcdl</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <Import Condition="'$(QualcommCommonPropsImported)' != 'true'" Project="$(QCExtPath)\Qualcomm.Common.props" />
+  <Import Condition="'$(QualcommTasksImported)' != 'true'" Project="$(QCExtPath)\Qualcomm.tasks" />
+  <!-- Import the Qualcomm properties and task definitions -->
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <CharacterSet>Unicode</CharacterSet>
+    <BuildWindowsPhone>true</BuildWindowsPhone>
+    <PlatformToolset>$(VisualStudioPTS)</PlatformToolset>
+    <UseOfMfc>false</UseOfMfc>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <CharacterSet>Unicode</CharacterSet>
+    <BuildWindowsPhone>true</BuildWindowsPhone>
+    <!--
+    <PlatformToolset Condition="'$(QualcommWdkPropsImported)' != 'true'">WindowsApplicationForDrivers8.1</PlatformToolset>
+    <PlatformToolset Condition="'$(QualcommWdkPropsImported)' == 'true'">$(WDKApplicationPTS)</PlatformToolset>
+    -->
+    <PlatformToolset>$(VisualStudioPTS)</PlatformToolset>
+    <UseOfMfc>false</UseOfMfc>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+    <BuildWindowsPhone>true</BuildWindowsPhone>
+    <PlatformToolset>$(VisualStudioPTS)</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+    <BuildWindowsPhone>true</BuildWindowsPhone>
+    <!--
+    <PlatformToolset Condition="'$(QualcommWdkPropsImported)' != 'true'">WindowsApplicationForDrivers8.1</PlatformToolset>
+    <PlatformToolset Condition="'$(QualcommWdkPropsImported)' == 'true'">$(WDKApplicationPTS)</PlatformToolset>
+    -->
+    <PlatformToolset>$(VisualStudioPTS)</PlatformToolset>
+    <UseOfMfc>false</UseOfMfc>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+	<TargetName>emmcdl</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
+    <LinkIncremental>false</LinkIncremental>
+    <TargetName>emmcdlarm64</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+	<TargetName>emmcdl</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
+    <LinkIncremental>false</LinkIncremental>
+	<TargetName>emmcdlarm64</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;ZLIB_WINAPI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <AdditionalIncludeDirectories>$(SolutionDir)\inc</AdditionalIncludeDirectories>
+      <PrecompiledHeaderFile />
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <WarningLevel>Level4</WarningLevel>
+      <TreatWarningAsError>true</TreatWarningAsError>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>$(ProjectDir)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>Advapi32.lib;setupapi.lib;uuid.lib</AdditionalDependencies>
+      <AddModuleNamesToAssembly>
+      </AddModuleNamesToAssembly>
+      <TreatLinkerWarningAsErrors>true</TreatLinkerWarningAsErrors>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
+    <ClCompile>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>ARM64;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(SolutionDir)\inc</AdditionalIncludeDirectories>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <WarningLevel>Level4</WarningLevel>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <PrecompiledHeaderFile />
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <AdditionalDependencies>Advapi32.lib;setupapi.lib;uuid.lib</AdditionalDependencies>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <TreatLinkerWarningAsErrors>true</TreatLinkerWarningAsErrors>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;ZLIB_WINAPI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <AdditionalIncludeDirectories>$(SolutionDir)\inc</AdditionalIncludeDirectories>
+      <PrecompiledHeaderFile />
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <WarningLevel>Level4</WarningLevel>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalLibraryDirectories>$(ProjectDir)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>Advapi32.lib;setupapi.lib;uuid.lib</AdditionalDependencies>
+      <TreatLinkerWarningAsErrors>true</TreatLinkerWarningAsErrors>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
+    <ClCompile>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>ARM64;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(SolutionDir)\inc</AdditionalIncludeDirectories>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <WarningLevel>Level4</WarningLevel>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <PrecompiledHeaderFile />
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <AdditionalDependencies>Advapi32.lib;setupapi.lib;uuid.lib</AdditionalDependencies>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <TreatLinkerWarningAsErrors>true</TreatLinkerWarningAsErrors>
+    </Link>
+  </ItemDefinitionGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Import Condition="'$(QualcommCommonTargetsImported)' != 'true'" Project="$(QCExtPath)\Qualcomm.Common.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+  <ItemGroup>
+    <ClInclude Include="inc\crc.h" />
+    <ClInclude Include="inc\diskwriter.h" />
+    <ClInclude Include="inc\dload.h" />
+    <ClInclude Include="inc\emmcdl.h" />
+    <ClInclude Include="inc\ffu.h" />
+    <ClInclude Include="inc\firehose.h" />
+    <ClInclude Include="inc\partition.h" />
+    <ClInclude Include="inc\protocol.h" />
+    <ClInclude Include="inc\qcversion.h" />
+    <ClInclude Include="inc\sahara.h" />
+    <ClInclude Include="inc\serialport.h" />
+    <ClInclude Include="inc\sparse.h" />
+    <ClInclude Include="inc\targetver.h" />
+    <ClInclude Include="inc\xmlparser.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\crc.cpp" />
+    <ClCompile Include="src\diskwriter.cpp" />
+    <ClCompile Include="src\dload.cpp" />
+    <ClCompile Include="src\emmcdl.cpp" />
+    <ClCompile Include="src\ffu.cpp" />
+    <ClCompile Include="src\firehose.cpp" />
+    <ClCompile Include="src\partition.cpp" />
+    <ClCompile Include="src\protocol.cpp" />
+    <ClCompile Include="src\sahara.cpp" />
+    <ClCompile Include="src\serialport.cpp" />
+    <ClCompile Include="src\sparse.cpp" />
+    <ClCompile Include="src\xmlparser.cpp" />
+  </ItemGroup>
+  
+  <Import Condition="'$(QualcommCommonTargetsImported)' != 'true'" Project="$(QCExtPath)\Qualcomm.Common.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+    <ItemGroup>
+    <QCPackageFiles Condition="'$(Platform)'=='ARM64'" Include="$(Configuration)\emmcdl.exe">
+      <Dest>$(QCAppPackageDir)\emmcdl</Dest>
+      <HY11>true</HY11>
+      <HY22>true</HY22>
+    </QCPackageFiles>
+    <QCPackageFiles Condition="'$(Platform)'=='ARM64'" Include="$(Configuration)\emmcdl.exe">
+      <Dest>$(QCBootPackageDir)\BOOTCHAIN</Dest>
+	  <HY11>true</HY11>
+      <HY22>true</HY22>
+    </QCPackageFiles>
+    <QCSourceFiles Condition="'$(Platform)'=='ARM64'" Include="src\*.cpp">
+      <Dest>emmcdl\src</Dest>
+      <HY11>true</HY11>
+      <HY22>true</HY22>
+    </QCSourceFiles>
+    <QCSourceFiles Condition="'$(Platform)'=='ARM64'" Include="lib\*.lib">
+      <Dest>emmcdl\lib</Dest>
+      <HY11>true</HY11>
+      <HY22>true</HY22>
+    </QCSourceFiles>    
+    <QCSourceFiles Condition="'$(Platform)'=='ARM64'" Include="inc\*.h">
+      <Dest>emmcdl\inc</Dest>
+      <HY11>true</HY11>
+      <HY22>true</HY22>
+    </QCSourceFiles>
+    <QCSourceFiles Condition="'$(Platform)'=='ARM64'" Include="*.sln;*.vcxproj;*.proj;build.ps1;BuildKitsVersion.json;">
+      <Dest>emmcdl</Dest>
+      <HY11>true</HY11>
+      <HY22>true</HY22>
+    </QCSourceFiles>
+  </ItemGroup>
+  
+</Project>

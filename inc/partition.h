@@ -12,8 +12,8 @@
 /*=============================================================================
                         Edit History
 
-$Header: //source/qcom/qct/platform/uefi/workspaces/pweber/apps/8x26_emmcdl/emmcdl/main/latest/inc/partition.h#5 $
-$DateTime: 2015/04/01 17:01:45 $ $Author: pweber $
+$Header: //deploy/qcom/qct/platform/wpci/prod/woa/emmcdl/main/latest/inc/partition.h#8 $
+$DateTime: 2018/04/24 16:56:18 $ $Author: wmcisvc $
 
 when       who     what, where, why
 -------------------------------------------------------------------------------
@@ -30,6 +30,7 @@ when       who     what, where, why
 #define MAX_LIST_SIZE   100
 #define MAX_PATH_LEN    256
 #define SECTOR_SIZE	    512
+#define GUID_LEN        64
 
 typedef unsigned __int64 uint64;
 class Protocol;
@@ -72,6 +73,13 @@ typedef struct {
   uint64  attributes;
   TCHAR   part_name[36];
 } gpt_entry_t;
+
+typedef struct {
+	UINT32 data1;
+	UINT16 data2;
+	UINT16 data3;
+	UINT8 data4[8];
+} guid_t;
 
 typedef struct {
   cmdEnum eCmd;

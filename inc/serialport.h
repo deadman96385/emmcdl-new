@@ -12,8 +12,8 @@
 /*=============================================================================
                         Edit History
 
-$Header: //source/qcom/qct/platform/uefi/workspaces/pweber/apps/8x26_emmcdl/emmcdl/main/latest/inc/serialport.h#3 $
-$DateTime: 2014/08/05 11:44:01 $ $Author: pweber $
+$Header: //deploy/qcom/qct/platform/wpci/prod/woa/emmcdl/main/latest/inc/serialport.h#8 $
+$DateTime: 2018/09/03 09:38:50 $ $Author: wmcisvc $
 
 when       who     what, where, why
 -------------------------------------------------------------------------------
@@ -29,6 +29,7 @@ when       who     what, where, why
 #define  ASYNC_HDLC_ESC       0x7d
 #define  ASYNC_HDLC_ESC_MASK  0x20
 #define  MAX_PACKET_SIZE      0x20000
+//#define  DEFAULT_COM_TIMEOUT  5000    // 5000 mS
 
 class SerialPort {
 public:
@@ -42,12 +43,13 @@ public:
   int Flush();
   int SendSync(BYTE *out_buf, int out_length, BYTE *in_buf, int *in_length);
   int SetTimeout(int ms);
+  int to_ms;
 private:
   int HDLCEncodePacket(BYTE *in_buf, int in_length, BYTE *out_buf, int *out_length);
   int HDLCDecodePacket(BYTE *in_buf, int in_length, BYTE *out_buf, int *out_length);
-  
+
   HANDLE hPort;
   BYTE *HDLCBuf;
-  int to_ms;
+  
 
 };

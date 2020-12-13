@@ -12,8 +12,8 @@
 /*=============================================================================
                         Edit History
 
-$Header: //source/qcom/qct/platform/uefi/workspaces/pweber/apps/8x26_emmcdl/emmcdl/main/latest/src/serialport.cpp#3 $
-$DateTime: 2014/12/29 17:28:07 $ $Author: pweber $
+$Header: //deploy/qcom/qct/platform/wpci/prod/woa/emmcdl/main/latest/src/serialport.cpp#10 $
+$DateTime: 2019/03/11 15:00:38 $ $Author: wmcisvc $
 
 when       who     what, where, why
 -------------------------------------------------------------------------------
@@ -23,11 +23,13 @@ when       who     what, where, why
 #include "tchar.h"
 #include "serialport.h"
 #include "stdlib.h"
+extern int conn_timeout;
+
 
 SerialPort::SerialPort()
 {
   hPort = INVALID_HANDLE_VALUE;
-  to_ms = 1000;  // 1 second default timeout for packets to send/rcv
+  to_ms = conn_timeout;  // Timeout for send/recv
   HDLCBuf = (BYTE *)malloc(MAX_PACKET_SIZE);
 
 }
@@ -37,13 +39,14 @@ SerialPort::~SerialPort()
   if( hPort != INVALID_HANDLE_VALUE ) {
     CloseHandle(hPort);
   }
+#pragma prefast(suppress: 6001, "Even after initializing HDLCBuf, same warning [Using uninitialized memory '*this'] shows. So suppressing this warning.")
   if( HDLCBuf ) free(HDLCBuf);
 }
 
 int SerialPort::Open(int port)
 {
   TCHAR tPath[32];
-  
+
   swprintf_s(tPath,32,L"\\\\.\\COM%i",port );
   // Open handle to serial port and set proper port settings
   hPort = CreateFile( tPath,
@@ -55,7 +58,7 @@ int SerialPort::Open(int port)
                       NULL);
   if( hPort != INVALID_HANDLE_VALUE ) {
     SetTimeout(to_ms);
-  
+
     return ERROR_SUCCESS;
   }
   return GetLastError();
@@ -97,11 +100,11 @@ int SerialPort::Flush()
 {
   BYTE tmpBuf[1024];
   DWORD len = sizeof(tmpBuf);
-  
+
   // Set timeout to 1ms to just flush any pending data then change back to default
   SetTimeout(1);
   Read(tmpBuf, &len);
-  SetTimeout(1000);
+  SetTimeout(conn_timeout);
 
   PurgeComm(hPort, PURGE_RXABORT|PURGE_TXABORT|PURGE_RXCLEAR|PURGE_TXCLEAR);
   return ERROR_SUCCESS;
@@ -112,7 +115,7 @@ int SerialPort::SendSync(BYTE *out_buf, int out_length, BYTE *in_buf, int *in_le
   DWORD status = ERROR_SUCCESS;
   DWORD bytesOut = 0;
   DWORD bytesIn = 0;
-  
+
   // As long as hPort is valid write the data to the serial port and wait for response for timeout
   if( hPort == INVALID_HANDLE_VALUE ) {
     return ERROR_INVALID_HANDLE;
@@ -160,7 +163,7 @@ int SerialPort::SetTimeout(int ms)
   commTimeout.WriteTotalTimeoutConstant = ms;
   commTimeout.WriteTotalTimeoutMultiplier = MAXDWORD;
   SetCommTimeouts(hPort,&commTimeout);
-  
+
   to_ms = ms;
   return ERROR_SUCCESS;
 }
@@ -177,7 +180,7 @@ int SerialPort::HDLCEncodePacket(BYTE *in_buf, int in_length, BYTE *out_buf, int
     if( i == in_length ) {
       in_buf = (BYTE *)&crc;
     }
-    
+
     if( *in_buf == ASYNC_HDLC_FLAG ||
         *in_buf == ASYNC_HDLC_ESC ) {
       *outPtr++ = ASYNC_HDLC_ESC;
@@ -189,7 +192,7 @@ int SerialPort::HDLCEncodePacket(BYTE *in_buf, int in_length, BYTE *out_buf, int
   *outPtr++ = ASYNC_HDLC_FLAG;
 
   // Update length of packet
-  *out_length = outPtr - out_buf;
+  *out_length = (int)(outPtr - out_buf);
   return ERROR_SUCCESS;
 }
 
@@ -216,7 +219,7 @@ int SerialPort::HDLCDecodePacket(BYTE *in_buf, int in_length, BYTE *out_buf, int
     }
   }
 
-  *out_length = outPtr - out_buf;
+  *out_length = (int)(outPtr - out_buf);
   // Should do CRC check here but for now we are using USB so assume good
 
   return ERROR_SUCCESS;

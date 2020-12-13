@@ -12,8 +12,8 @@
 /*=============================================================================
 Edit History
 
-$Header: //source/qcom/qct/platform/uefi/workspaces/pweber/apps/8x26_emmcdl/emmcdl/main/latest/inc/sparse.h#1 $
-$DateTime: 2015/02/10 11:56:41 $ $Author: pweber $
+$Header: //deploy/qcom/qct/platform/wpci/prod/woa/emmcdl/main/latest/inc/sparse.h#1 $
+$DateTime: 2015/02/20 18:38:09 $ $Author: wmcisvc $
 
 when       who     what, where, why
 -------------------------------------------------------------------------------
